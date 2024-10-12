@@ -39,6 +39,11 @@ jobs:
         sed -i 's/^about_video2 = .*/about_video2 = ""/' main.py
         sed -i 's/^about = .*/about = ""/' main.py
 
+    - name: Set git identity
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
     - name: Commit and push changes
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
