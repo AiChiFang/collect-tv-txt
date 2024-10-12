@@ -1,9 +1,10 @@
-name: Daily Job
+name: Sync and Update Python Project Daily
 
 on:
   schedule:
-    # 每天 UTC 时间 10:00 运行 (如果你在另一个时区，调整时间)
+    # 每天 UTC 时间 10:00 运行
     - cron: "0 10 * * *"
+  workflow_dispatch:  # 添加这个触发器来支持手动运行
 
 jobs:
   sync-and-update:
