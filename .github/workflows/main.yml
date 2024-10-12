@@ -4,7 +4,7 @@ on:
   schedule:
     # 每天 UTC 时间 10:00 运行
     - cron: "0 10 * * *"
-  workflow_dispatch:  # 添加这个触发器来支持手动运行
+  workflow_dispatch:  # 支持手动运行
 
 jobs:
   sync-and-update:
@@ -13,6 +13,8 @@ jobs:
     steps:
     - name: Checkout current repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 确保完整拉取历史以便处理合并
 
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
@@ -22,7 +24,6 @@ jobs:
     - name: Add conda to system path
       run: |
         echo $CONDA/bin >> $GITHUB_PATH
-      
 
     - name: Install dependencies
       run: |
@@ -39,28 +40,26 @@ jobs:
         sed -i 's/^about_video2 = .*/about_video2 = ""/' main.py
         sed -i 's/^about = .*/about = ""/' main.py
 
+    # 设置全局 Git 用户身份，确保合并提交时身份信息正确
     - name: Set git identity
       run: |
         git config --global user.name "AiChiFang"
         git config --global user.email "2245984741@qq.com"
+        git config --global --add safe.directory /github/workspace  # 确保工作目录是安全的
 
     - name: Commit and push changes
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git add main.py
-        git commit -m "Updated main.py: Cleared about_video2 and about variables"
+        git commit -m "Updated main.py: Cleared about_video2 and about variables" || echo "No changes to commit"
         git push origin HEAD
 
     - name: Lint with flake8
       run: |
-        conda install flake8
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Test with pytest
       run: |
-        conda install pytest
         pytest
