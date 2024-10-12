@@ -1,64 +1,59 @@
-name: 'Daily Job'
+name: Sync and Update Python Project Daily
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 每天UTC时间00:00运行
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to deploy to'
-        required: true
-        default: 'production'
+    # 每天 UTC 时间 10:00 运行 (如果你在另一个时区，调整时间)
+    - cron: "0 10 * * *"
 
 jobs:
-  run_job:
+  sync-and-update:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-      
-    - name: Set up Python
-      uses: actions/setup-python@v2
+    - name: Checkout current repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
       with:
         python-version: '3.10'
-        
+
+    - name: Add conda to system path
+      run: |
+        echo $CONDA/bin >> $GITHUB_PATH
+
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        
-    - name: Run Python script
-      run: python main.py
-      
-    - name: Upload generated files
-      uses: actions/upload-artifact@v4
-      with:
-        name: generated-files
-        path: |
-          merged_output.txt
-          others_output.txt
-          
-    - name: Commit changes
-      run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          git add merged_output.txt
-          git add merged_output.m3u
-          git add merged_output_simple.txt
-          git add merged_output_simple.m3u
-          git add others_output.txt
-          git commit -m ":tada:  AutoUpdate $(date +'%Y%m%d')"
+        conda env update --file environment.yml --name base
 
-          current_datetime=$(date +"%Y%m%d_%H%M%S")
-          cp merged_output.txt history/"${current_datetime}_merged_output.txt"
-          cp others_output.txt history/"${current_datetime}_others_output.txt"
-          git add history/"${current_datetime}_merged_output.txt"
-          git add history/"${current_datetime}_others_output.txt"
-          git commit -m "Archive file with timestamp"
-          
-    - name: Push changes
-      uses: ad-m/github-push-action@master
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-    
-        
+    - name: Pull latest changes from external repository
+      run: |
+        git remote add upstream https://github.com/kimwang1978/collect-tv-txt.git || true
+        git fetch upstream
+        git merge upstream/main --allow-unrelated-histories -m "Merged updates from upstream"
+
+    - name: Modify main.py variables
+      run: |
+        sed -i 's/^about_video2 = .*/about_video2 = ""/' main.py
+        sed -i 's/^about = .*/about = ""/' main.py
+
+    - name: Commit and push changes
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add main.py
+        git commit -m "Updated main.py: Cleared about_video2 and about variables"
+        git push origin HEAD
+
+    - name: Lint with flake8
+      run: |
+        conda install flake8
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Test with pytest
+      run: |
+        conda install pytest
+        pytest
